@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # set -x # uncomment this for extremely spammy logs about script execution
 # basic config
+if [ -f "${BASH_SOURCE%/*}/.env" ]; then
+  set -a
+  source "${BASH_SOURCE%/*}/.env"
+  set +a
+fi
 
 # sleep time in seconds between image captures, notice that Prusa Connect accepts images at most every 10s or slower
 : "${SLEEP:=10}"
