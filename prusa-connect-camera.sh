@@ -10,6 +10,9 @@ fi
 # sleep time in seconds between image captures, notice that Prusa Connect accepts images at most every 10s or slower
 : "${SLEEP:=10}"
 
+# Maximum number of consecutive camera failures allowed before exiting
+: "${MAX_CONSECUTIVE_FAILURES:=5}"
+
 # Printer address to ping
 # if address is unreachable there is no point in sending an image
 # set to empty value to disable this feature
@@ -163,6 +166,8 @@ echo "Camera capture command: ${command_capture} ${CAMERA_COMMAND_EXTRA_PARAMS} 
 trap "echo SIGINT received, exiting...; exit 0" INT
 
 echo "Starting camera loop..."
+# Track consecutive failures
+consecutive_failures=0
 while true; do
   if [[ -n "${PRINTER_ADDRESS}" ]]; then
     # check if printer is up
@@ -181,11 +186,21 @@ while true; do
     2>"${TARGET_DIR}/camera_${PRUSA_CONNECT_CAMERA_FINGERPRINT}.stderr"
 
   if ! [[ -r "${TARGET_DIR}/camera_${PRUSA_CONNECT_CAMERA_FINGERPRINT}.jpg" ]]; then
-    echo "ERROR: Image not caputed!"
+    echo "ERROR: Image not captured!"
     cat "${TARGET_DIR}/camera_${PRUSA_CONNECT_CAMERA_FINGERPRINT}.stdout"
     cat "${TARGET_DIR}/camera_${PRUSA_CONNECT_CAMERA_FINGERPRINT}.stderr"
-    echo "Please analyze above output and fix it. Aborting loop."
-    exit 1
+    ((consecutive_failures++))
+    echo "Consecutive failures: ${consecutive_failures}/${MAX_CONSECUTIVE_FAILURES}"
+    if ((consecutive_failures >= MAX_CONSECUTIVE_FAILURES)); then
+      echo "Too many consecutive failures. Aborting loop."
+      exit 1
+    fi
+    echo "Continuing to try again after sleep..."
+    sleep "${SLEEP}"
+    continue
+  else
+    # Reset the counter after a successful capture
+    consecutive_failures=0
   fi
 
   # get captured image size, this is required by Prusa Connect API
